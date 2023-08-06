@@ -4,3 +4,5 @@ const events = require('../caps/eventPool.js');
 
 require('./vendor/vendor.js');
 require('./driver/driver.js');
+
+module.exports = events;

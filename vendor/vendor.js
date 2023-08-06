@@ -14,6 +14,7 @@ let time = new Date().toISOString();
 let store = chance.company();
 
 events.on('pickup', pickup);
+events.on('in-transit', inTransit);
 events.on('delivered', delivered);
 
 function pickup() {
@@ -26,8 +27,13 @@ function pickup() {
   console.log('EVENT', { event: 'pickup', time: time, payload: payload });
 }
 
+function inTransit() {
+  console.log('EVENT', { event: 'in-transit', time: time, payload: orderId });
+}
+
 function delivered() {
+  console.log('EVENT', { event: 'delivered', time: time, payload: orderId });
   console.log(`Thank you for your order ${customer}!`);
 }
 
-module.exports = { pickup, delivered };
+module.exports = { pickup, inTransit, delivered };
