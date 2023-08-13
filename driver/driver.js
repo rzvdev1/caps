@@ -2,10 +2,6 @@
 const { io } = require('socket.io-client');
 const events = require('../eventPool.js');
 
-// events.emit('pickup', { event: 'pickup', payload: '1' });
-// events.emit('in-transit', { event: 'in-transit', payload: '1' });
-// events.emit('delivered', { event: 'delivered', payload: '1' });
-
 const handleReady = (payload) => {
   console.log('The package is ready to be picked up');
 
