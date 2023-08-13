@@ -80,6 +80,7 @@ function startSocketServer() {
 
 function received(payload) {
   console.log('EVENT', { event: 'received', time: time, payload: orderId });
+  caps.emit('received', payload);
 }
 
 function getAll(payload) {
