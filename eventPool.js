@@ -7,4 +7,5 @@ module.exports = {
   delivered: 'packageDelivered',
   announcement: 'announcement',
   ready: 'ready',
+  received: 'received',
 };

@@ -34,6 +34,7 @@ function handlePickupReady(payload, socket) {
     driver.emit('received', { message: 'pickup acknowledged' });
 
     caps.emit(events.ready, { message: 'a pickup is now ready', ...payload });
+    getAll(payload);
   }
 }
 
@@ -44,6 +45,7 @@ function pickup(payload) {
     let driver = driverQueue.dequeue();
     console.log('the driver picked up the package', payload.orderId);
     driver.emit(events.pickedUp, payload);
+    received(payload);
   }
 }
 
@@ -76,10 +78,20 @@ function startSocketServer() {
   caps.on('connection', handleConnection);
 }
 
+function received(payload) {
+  console.log('EVENT', { event: 'received', time: time, payload: orderId });
+}
+
+function getAll(payload) {
+  console.log('EVENT', { event: 'getAll', time: time, payload: orderId });
+  caps.emit('getAll', payload);
+}
+
 module.exports = {
   startSocketServer,
   inTransit,
   delivered,
   io,
   caps,
+  received,
 };
