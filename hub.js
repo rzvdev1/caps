@@ -1,8 +1,6 @@
 'use strict';
 const { Server } = require('socket.io');
-const events = require('../caps/eventPool.js');
-
-const Queue = require('./vendor/vendor.js').Queue;
+const { events, Queue, chance } = require('./events');
 
 const io = new Server();
 
@@ -11,30 +9,18 @@ io.listen(3000);
 const driverQueue = new Queue();
 const packageQueue = new Queue();
 
-const caps = io.of('/caps');
-var Chance = require('chance');
+let chanceOneSocket = null;
+let chanceTwoSocket = null;
+const chanceOneDeliveredQueue = new Queue();
+const chanceTwoDeliveredQueue = new Queue();
 
-// // Instantiate Chance so it can be used
-let chance = new Chance();
-
-let customer = `${chance.first()} ${chance.last()}`;
-let address = `${chance.address()} ${chance.city()} ${chance.state()} ${chance.zip()}`;
-let orderId = chance.guid();
-let time = new Date().toISOString();
-let store = chance.company();
-
-function handlePickupReady(payload, socket) {
+function handlePickupReady(payload) {
+  console.log('Pending pickup', payload.orderId);
   if (driverQueue.isEmpty()) {
-    packageQueue.enqueue(socket);
+    packageQueue.enqueue(payload);
   } else {
     let driver = driverQueue.dequeue();
-    console.log('the pickup was requested', payload.orderId);
-    console.log('EVENT', { event: 'pickup', time: time, payload: payload });
-
-    driver.emit('received', { message: 'pickup acknowledged' });
-
-    caps.emit(events.ready, { message: 'a pickup is now ready', ...payload });
-    getAll(payload);
+    driver.emit(events.pickup, payload);
   }
 }
 
@@ -50,42 +36,81 @@ function pickup(payload) {
 }
 
 function inTransit(payload) {
-  driverQueue.enqueue(payload);
-  caps.emit(events.inTransit, payload);
-  console.log('EVENT', { event: 'in-transit', time: time, payload: orderId });
+  console.log('in transit', payload.orderId);
+  if (payload.clientId === chance.guid()) {
+    chanceOneSocket.emit(events.inTransit, payload);
+  }
+  if (payload.clientId === chance.chance.guid()) {
+    chanceTwoSocket.emit(events.inTransit, payload);
+  }
+}
+
+function ready(socket) {
+  if (packageQueue.isEmpty()) {
+    driverQueue.enqueue(socket);
+  } else {
+    let order = packageQueue.dequeue();
+    console.log('the driver picked up the package', order.orderId);
+    socket.emit(events.pickup, order);
+  }
 }
 
 function delivered(payload) {
-  console.log(`the package for ${payload.customerId} has been delivered`);
-  caps.emit(events.delivered, {
-    orderId: payload.orderId,
-    message: `the package for ${payload.customerId} has been delivered`,
-  });
-  console.log('EVENT', { event: 'delivered', time: time, payload: orderId });
-  console.log(`Thank you for your order ${customer}!`);
+  console.log('delivered', payload.orderId);
+  if (payload.clientId === chance.guid()) {
+    chanceOneDeliveredQueue.enqueue(payload);
+    chanceOneSocket.emit(events.delivered, payload);
+  }
+  if (payload.clientId === chance.chance.guid()) {
+    chanceTwoDeliveredQueue.enqueue(payload);
+    chanceTwoSocket.emit(events.delivered, payload);
+  }
 }
 
 function handleConnection(socket) {
   console.log('we have a new connection: ', socket.id);
 
-  socket.on(events.pickup, (payload) => handlePickupReady(payload, socket));
-  socket.on(events.pickedUp, pickup);
-  socket.on(events.inTransit, inTransit);
+  socket.on(events.pickup, handlePickupReady);
+  socket.on(events.ready, (payload) => {
+    ready(socket);
+  });
+
   socket.on(events.delivered, delivered);
+  socket.on('received', received);
+  socket.on('getAll', (params) => getAll(params, socket));
 }
+
 function startSocketServer() {
-  console.log('The server has been started');
-  caps.on('connection', handleConnection);
+  // on connection has a payload of the socket that connected
+  io.on('connection', handleConnection);
+  console.log('Everything is started!');
 }
 
 function received(payload) {
-  console.log('EVENT', { event: 'received', time: time, payload: orderId });
-  caps.emit('received', payload);
+  console.log('vendor acknowledged delivery', payload.messageId);
+  // remove from the queue
+  if (payload.clientId === chance.guid()) {
+    // put it in the 1-800-flowers queue
+    chanceOneDeliveredQueue.dequeue();
+  }
+  if (payload.clientId === chance.chance.guid()) {
+    // put it in acme queue
+    chanceTwoDeliveredQueue.dequeue();
+  }
 }
 
-function getAll(payload) {
-  console.log('EVENT', { event: 'getAll', time: time, payload: orderId });
-  caps.emit('getAll', payload);
+function getAll(params, socket) {
+  if (params === chance.company()) {
+    chanceOneSocket = socket;
+    chanceOneDeliveredQueue.queue.forEach((order) => {
+      socket.emit(events.delivered, order);
+    });
+  } else if (params === chance.chance.company()) {
+    chanceTwoSocket = socket;
+    chanceOneDeliveredQueue.queue.forEach((order) => {
+      socket.emit(events.delivered, order);
+    });
+  }
 }
 
 module.exports = {
@@ -93,6 +118,7 @@ module.exports = {
   inTransit,
   delivered,
   io,
-  caps,
+  pickup,
   received,
+  handleConnection,
 };

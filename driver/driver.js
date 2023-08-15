@@ -1,18 +1,34 @@
 'use strict ';
 const { io } = require('socket.io-client');
-const events = require('../eventPool.js');
+const client = io('ws://localhost:3000');
 
-const handleReady = (payload) => {
-  console.log('The package is ready to be picked up');
+const { chance, events } = require('../events.js');
 
-  client.emit(events.inTransit, payload);
+function delivering(payload, client) {
+  console.log('Driver is delivering order', payload.messageId);
 
-  console.log('the package has been delivered');
   client.emit(events.delivered, payload);
-};
+  client.emit(events.ready);
+}
 
-const client = io('ws://localhost:3000/caps');
-client.on(events.announcement, (payload) => console.log(payload.message));
-client.on(events.ready, handleReady);
+function inTransit(payload, client) {
+  console.log('Driver is in transit', payload.messageId);
+  client.emit(events.inTransit, payload);
+}
 
-module.exports = { client };
+function pickup(payload, client) {
+  console.log('Driver is picking up order', payload.messageId);
+  inTransit(payload, client);
+  setTimeout(() => {
+    delivering(payload, client);
+  }, 5000);
+}
+
+function start() {
+  console.log('Driver is ready to pick up orders');
+  client.emit(events.ready);
+  client.on(events.pickup, (payload) => {
+    pickup(payload, client);
+  });
+}
+module.exports = { start };
